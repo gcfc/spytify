@@ -1,0 +1,4 @@
+node_modules/
+*.pkl
+.env
+package-lock.json

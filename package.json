@@ -1,0 +1,19 @@
+{
+  "name": "spotify_spy",
+  "version": "1.0.0",
+  "description": "Scan for friends' listening history",
+  "license": "MIT",
+  "author": "George",
+  "files": [
+    "scan_activity.js"
+  ],
+  "scripts": {
+    "lint": "standard"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  },
+  "devDependencies": {
+    "standard": "^14.3.4"
+  }
+}
