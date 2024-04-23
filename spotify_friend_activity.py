@@ -4,6 +4,7 @@ import pickle
 import os
 import sys
 import requests
+from tqdm import tqdm
 from pprint import pprint
 from datetime import datetime as dt
 from dotenv import load_dotenv
@@ -24,20 +25,24 @@ else:
 def get_access_token() -> str:
     access_token_url = "https://open.spotify.com/get_access_token?reason=transport&productType=web_player"
     headers = {"Cookie": f"sp_dc={SP_DC}"}
-    response = requests.get(url=access_token_url, headers=headers)
-    if not (response.status_code == 200):
-        print("Cannot request access token.")
-        return None
-    if not (response.json() and "accessToken" in response.json()):
-        print("Cannot parse JSON for access token.")
-        return None
-    return response.json()["accessToken"]
+    try:
+      response = requests.get(url=access_token_url, headers=headers)
+      if not (response.status_code == 200):
+          print("Cannot request access token.")
+          return None
+      if not (response.json() and "accessToken" in response.json()):
+          print("Cannot parse JSON for access token.")
+          return None
+      return response.json()["accessToken"]
+    except:
+      return None
 
 def sync_playlist(access_token):
     total, offset = None, 0
     all_uris = set()
+    chunk_size = 100 # Cannot be higher
     while total is None or offset < total:
-        url = f"https://api.spotify.com/v1/playlists/{PLAYLIST_ID}/tracks?market=US&limit=100&offset={offset}"
+        url = f"https://api.spotify.com/v1/playlists/{PLAYLIST_ID}/tracks?market=US&limit={chunk_size}&offset={offset}"
         headers = {"Authorization": f"Bearer {access_token}"}
         response = requests.get(url=url, headers=headers)
         if not (response.status_code == 200):
@@ -46,9 +51,20 @@ def sync_playlist(access_token):
             raise RuntimeError("Cannot parse playlist JSON.")
         if total is None:
             total = response.json()["total"]
+            progress_bar = tqdm(total=total, desc="Syncing playlist")
         all_uris.update(set(song['track']['uri'] for song in response.json()["items"] if song['track'] is not None))
-        offset += 100
+        progress_bar.update(min(chunk_size, abs(total - offset)))
+        offset += chunk_size
+    else:
+        progress_bar.close()
     return all_uris 
+
+def load_from_pickle(pickle_data):
+    all_uris = set()
+    for user, history in pickle_data.items():
+        for song, album, artist, playlist, uri in history:
+            all_uris.add(uri)
+    return all_uris
 
 def scan_activity(access_token):
     js_file = os.path.join(sys.path[0], "scan_activity.js")
@@ -115,12 +131,11 @@ if __name__ == "__main__":
     retries_left = MAX_RETRIES
     access_token = get_access_token()
     all_uris = sync_playlist(access_token)
+    all_uris.update(load_from_pickle(pickle_data))
     while True:
         success, write_pickle_success, add_playlist_success = True, True, True
         try:
             print(f"{dt.now()}: Scanning activity...", end=" ")
-            access_token_result = get_access_token()
-            access_token = access_token_result if access_token_result is not None else access_token
             activity_dict, activity_success = scan_activity(access_token)
             if activity_success and activity_dict is not None:
                 write_pickle_success, new_uris = parse_and_pickle(activity_dict, all_uris)
@@ -131,8 +146,12 @@ if __name__ == "__main__":
                     add_playlist_success = add_to_playlist(new_uris, access_token)
                 all_uris.update(new_uris)
                 print(f"Added {len(new_uris)} song{'s' if len(new_uris) != 1 else ''} to the playlist!")
+            else:
+                write_pickle_success, add_playlist_success = False, False
             success = success and write_pickle_success and add_playlist_success
             if not success:
+                access_token_result = get_access_token()
+                access_token = access_token_result if access_token_result is not None else access_token
                 retries_left -= 1
             else:
                 retries_left = MAX_RETRIES
@@ -140,6 +159,9 @@ if __name__ == "__main__":
                 raise RuntimeError("Max retries reached!")
             time.sleep(75) # Max 50 requests per hour
         except KeyboardInterrupt:
-            pprint(pickle_data)
-            print("Have a nice day!")
+            print("Pickle saved. Have a nice day!")
             break
+        except:
+            access_token_result = get_access_token()
+            access_token = access_token_result if access_token_result is not None else access_token
+            continue
