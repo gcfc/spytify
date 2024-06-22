@@ -2,6 +2,7 @@ import subprocess
 import time
 import pickle
 import os
+import re
 import sys
 import requests
 from tqdm import tqdm
@@ -13,7 +14,13 @@ load_dotenv()
 
 MAX_RETRIES = 5
 SP_DC = os.environ["SP_DC"]
-PLAYLIST_ID = os.environ["PLAYLIST_ID"]
+PLAYLIST_LINK = os.environ["PLAYLIST_LINK"]
+
+regex_match = re.search(r'/playlist/([^?]+)', PLAYLIST_LINK)
+if regex_match:
+    PLAYLIST_ID = regex_match.group(1)
+else:
+    raise EnvironmentError("Cannot parse Spotify playlist link.")
 
 PICKLE_FILE = os.path.join(sys.path[0], "history.pkl")
 if os.path.exists(PICKLE_FILE) and os.path.getsize(PICKLE_FILE) > 0:
@@ -125,6 +132,11 @@ def add_to_playlist(new_uris : set, access_token : str):
     success = (response.status_code == 200)
     if not success:
         print("Cannot add new songs to playlist.")
+        try:
+            json = response.json()
+            print(f"{json["error"]["status"]}: {json["error"]["message"]}")
+        except:
+            print("Cannot display error message.")
     return success
 
 if __name__ == "__main__":
@@ -144,7 +156,8 @@ if __name__ == "__main__":
                     print(activity_dict)
                 if new_uris:
                     add_playlist_success = add_to_playlist(new_uris, access_token)
-                all_uris.update(new_uris)
+                    if add_playlist_success:
+                        all_uris.update(new_uris)
                 print(f"Added {len(new_uris)} song{'s' if len(new_uris) != 1 else ''} to the playlist!")
             else:
                 write_pickle_success, add_playlist_success = False, False
@@ -153,10 +166,12 @@ if __name__ == "__main__":
                 access_token_result = get_access_token()
                 access_token = access_token_result if access_token_result is not None else access_token
                 retries_left -= 1
+                print("Retries left:", retries_left)
             else:
                 retries_left = MAX_RETRIES
             if retries_left <= 0:
                 raise RuntimeError("Max retries reached!")
+            print()
             time.sleep(75) # Max 50 requests per hour
         except KeyboardInterrupt:
             print("Pickle saved. Have a nice day!")

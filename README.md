@@ -30,7 +30,7 @@ In this `spytify` directory, create a file called `.env` with these lines:
 
 ```
 SP_DC="..."
-PLAYLIST_ID="..."
+PLAYLIST_LINK="..."
 ```
 
 Let's find these two values (to replace the `"..."`) in the following sections. 
@@ -47,11 +47,9 @@ Let's find these two values (to replace the `"..."`) in the following sections.
 
 Note that the `sp_dc` cookie is valid for a year or so. 
 
-#### Playlist ID
+#### Playlist Link
 
 Choose an existing Spotify playlist you want to add songs to or create a new one. To find its ID, share the playlist from Spotify as a link. It should look something like this: https://open.spotify.com/playlist/24J4jmPZMVfpDgj9xHfYbo?si=57540f0511824bac
-
-Starting from the `/` after `playlist` to the first `?` you see (if there are any), this is the playlist ID. In this case, `24J4jmPZMVfpDgj9xHfYbo`. 
 
 This is the second value needed in the `.env` file. Paste it in and keep the quotes.
 
